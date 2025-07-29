@@ -1,0 +1,28 @@
+{
+  "output": {
+    "location": "./snapshots",
+    "formats": ["png", "jpg"],
+    "storage": {
+      "provider": "filesystem",
+      "location": "./snapshots",
+      "overwrite": true
+    }
+  },
+  "performance": {
+    "maxConcurrency": 4
+  },
+  "sanitization": {
+    "blockerLists": [],
+    "customRules": [
+      "#cookie-law-info-bar",
+      "[id*='cookie']",
+      "[class*='cookie']",
+      "[id*='banner']",
+      "[class*='banner']",
+      "[id*='popup']",
+      "[class*='popup']",
+      "[id*='dialog']",
+      "[class*='dialog']"
+    ]
+  }
+}

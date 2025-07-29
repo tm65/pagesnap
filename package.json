@@ -1,0 +1,15 @@
+{
+  "name": "pagesnap-monorepo",
+  "private": true,
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "core": "npm run -w @pagesnap/core",
+    "api": "npm run -w @pagesnap/api",
+    "setup": "npm install && npx playwright install --with-deps"
+  },
+  "devDependencies": {
+    "playwright": "^1.40.1"
+  }
+}

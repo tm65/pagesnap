@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pagesnap"
+version = "0.1.0"
+description = "A high-fidelity webpage-to-image conversion tool."
+readme = "README.md"
+requires-python = ">=3.7"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+dependencies = [
+    "playwright",
+    "boto3",
+    "lru-dict",
+    "aiofiles",
+]
+
+[project.urls]
+Homepage = "https://github.com/your-repo/pagesnap" # Replace with actual repo URL
+
+[project.scripts]
+pagesnap = "pagesnap.cli:main"

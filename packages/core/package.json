@@ -1,0 +1,23 @@
+{
+  "name": "@pagesnap/core",
+  "version": "0.1.0",
+  "description": "Core library for converting webpages to images.",
+  "type": "module",
+  "main": "src/index.js",
+  "bin": {
+    "pagesnap": "src/cli.js"
+  },
+  "scripts": {
+    "test": "jest"
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.850.0",
+    "lru-cache": "^5.1.1",
+    "p-queue": "^7.3.4",
+    "yargs": "^17.7.2"
+  },
+  "devDependencies": {
+    "jest": "^29.7.0"
+  },
+  "license": "ISC"
+}

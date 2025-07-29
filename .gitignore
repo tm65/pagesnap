@@ -1,0 +1,42 @@
+# Dependencies
+/node_modules
+/python/venv/
+/python/__pycache__/
+/packages/core/node_modules
+/packages/api/node_modules
+
+# Build artifacts
+/dist/
+/build/
+*.egg-info/
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# IDE settings
+.idea/
+.vscode/
+
+# Playwright
+/playwright-report/
+/test-results/
+
+# Snapshots
+/snapshots/
+
+# Env files
+.env
+.env.*
+!/.env.example
