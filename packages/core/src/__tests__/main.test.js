@@ -71,3 +71,4 @@ describe('PageSnap', () => {
     await fs.rmdir(outputDir, { recursive: true });
   });
 });
+

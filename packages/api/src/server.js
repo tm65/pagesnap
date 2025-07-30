@@ -8,7 +8,7 @@ const port = process.env.PORT || 3000;
 app.use(express.json());
 
 app.post('/api/v1/convert', async (req, res) => {
-  const { urls, ...options } = req.body;
+  const { urls, watermark, ...options } = req.body;
 
   if (!urls || !Array.isArray(urls) || urls.length === 0) {
     return res.status(400).json({ error: 'Missing or invalid "urls" array in request body.' });
@@ -17,6 +17,12 @@ app.post('/api/v1/convert', async (req, res) => {
   try {
     // In ESM, we must load config and initialize the PageSnap instance asynchronously.
     const config = await loadConfig(); // Assumes default config file location
+
+    // Merge watermark config from request with default config
+    if (watermark) {
+      config.watermark = { ...config.watermark, ...watermark };
+    }
+
     const converter = await new PageSnap(config).init();
     
     const results = await converter.capture(urls, options);

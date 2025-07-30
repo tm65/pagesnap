@@ -2,7 +2,10 @@ import asyncio
 from playwright.async_api import async_playwright
 from urllib.parse import urlparse
 import re
+import base64
+import mimetypes
 from .config import load_config
+
 from .storage.file_system_provider import FileSystemProvider
 from .storage.in_memory_provider import InMemoryProvider
 from .storage.s3_provider import S3Provider
@@ -46,6 +49,10 @@ class PageSnap:
                         await new Promise(resolve => setTimeout(resolve, 300));
                     }}
                 }}""", custom_rules)
+
+            # Apply watermark if enabled
+            if "watermark" in self.config and self.config["watermark"]["enabled"]:
+                await self._apply_watermark(page, self.config["watermark"])
 
             screenshot_options = {
                 "full_page": "clip" not in options, # If a clip is provided, full_page must be false
@@ -97,3 +104,94 @@ class PageSnap:
         parsed = urlparse(url)
         name = f"{parsed.hostname}{parsed.path}".rstrip('/')
         return re.sub(r'[^a-z0-9]', '_', name, flags=re.IGNORECASE).lower()
+
+    async def _apply_watermark(self, page, watermark: dict):
+        if not watermark or not watermark.get("enabled"):
+            return
+
+        watermark_type = watermark.get("type", "text")
+        
+        watermark_data = {}
+        if watermark_type == "text":
+            watermark_data = watermark.get("text", {})
+        elif watermark_type == "image":
+            watermark_data = watermark.get("image", {})
+            image_path = watermark_data.get("path")
+            if image_path:
+                try:
+                    with open(image_path, "rb") as image_file:
+                        encoded_string = base64.b64encode(image_file.read()).decode()
+                    mime_type, _ = mimetypes.guess_type(image_path)
+                    if mime_type:
+                        watermark_data["path"] = f"data:{mime_type};base64,{encoded_string}"
+                except Exception as e:
+                    print(f"Failed to read watermark image: {image_path}, {e}")
+                    return
+
+        await page.evaluate("""(watermark) => {
+            const watermarkElement = document.createElement('div');
+            watermarkElement.id = 'pagesnap-watermark';
+            
+            let style = 'position: fixed; z-index: 999999; pointer-events: none;';
+
+            if (watermark.type === 'text') {
+                watermarkElement.textContent = watermark.text.content;
+                style += `
+                  font-family: ${watermark.text.font};
+                  font-size: ${watermark.text.size};
+                  color: ${watermark.text.color};
+                `;
+            } else if (watermark.type === 'image') {
+                const img = document.createElement('img');
+                img.src = watermark.image.path; // This will be a data URI
+                img.style.width = watermark.image.width;
+                img.style.height = watermark.image.height;
+                img.style.opacity = watermark.image.opacity;
+                watermarkElement.appendChild(img);
+            }
+
+            const { position, x_offset, y_offset } = watermark.type === 'text' ? watermark.text : watermark.image;
+
+            switch (position) {
+                case 'top-left':
+                    style += `top: ${y_offset}px; left: ${x_offset}px;`;
+                    break;
+                case 'top-right':
+                    style += `top: ${y_offset}px; right: ${x_offset}px;`;
+                    break;
+                case 'bottom-left':
+                    style += `bottom: ${y_offset}px; left: ${x_offset}px;`;
+                    break;
+                case 'bottom-right':
+                    style += `bottom: ${y_offset}px; right: ${x_offset}px;`;
+                    break;
+                case 'center':
+                    style += `top: 50%; left: 50%; transform: translate(-50%, -50%);`;
+                    break;
+                case 'tile':
+                    // Tiling will be handled differently
+                    break;
+            }
+            
+            watermarkElement.style.cssText = style;
+
+            if (position === 'tile') {
+                const tileContainer = document.createElement('div');
+                tileContainer.id = 'pagesnap-watermark-container';
+                tileContainer.style.cssText = 'position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 999999; pointer-events: none; overflow: hidden;';
+                
+                const watermarkDataUri = `data:image/svg+xml;utf8,${encodeURIComponent(`
+                  <svg xmlns="http://www.w3.org/2000/svg" width="200" height="100">
+                    <text x="10" y="50" font-family="${watermark.text.font}" font-size="${watermark.text.size}" fill="${watermark.text.color}" transform="rotate(-30, 10, 50)">
+                      ${watermark.text.content}
+                    </text>
+                  </svg>
+                `)}`;
+                
+                tileContainer.style.backgroundImage = `url("${watermarkDataUri}")`;
+                tileContainer.style.backgroundRepeat = 'repeat';
+                document.body.appendChild(tileContainer);
+            } else {
+                document.body.appendChild(watermarkElement);
+            }
+        }""", watermark)

@@ -24,5 +24,25 @@
       "[id*='dialog']",
       "[class*='dialog']"
     ]
+  },
+  "watermark": {
+    "enabled": false,
+    "type": "text",
+    "text": {
+      "content": "PageSnap",
+      "font": "Arial",
+      "size": "24px",
+      "color": "rgba(0, 0, 0, 0.5)",
+      "position": "bottom-right",
+      "x_offset": 10,
+      "y_offset": 10
+    },
+    "image": {
+      "path": "",
+      "opacity": 0.5,
+      "position": "center",
+      "width": "100px",
+      "height": "auto"
+    }
   }
 }
