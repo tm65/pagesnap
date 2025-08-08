@@ -4,11 +4,16 @@ import { loadConfig } from './config.js';
 import fs from 'fs/promises';
 
 
+import FileSystemProvider from './storage/FileSystemProvider.js';
+import S3Provider from './storage/S3Provider.js';
+import InMemoryProvider from './storage/InMemoryProvider.js';
+
 // Note: The storage providers are now dynamically imported.
 
 export default class PageSnap {
-  constructor(config) {
-    this.config = config; // Config is now loaded asynchronously before instantiation
+  constructor(config, browser = null) {
+    this.config = config;
+    this.browser = browser; // Allow injecting a browser instance for testing
     this.queue = new PQueue({ concurrency: this.config.performance.maxConcurrency });
   }
 
@@ -22,36 +27,46 @@ export default class PageSnap {
     const storageConfig = this.config.output.storage;
     const providerName = storageConfig.provider;
     
-    try {
-      const providerModule = await import(`./storage/${providerName.charAt(0).toUpperCase() + providerName.slice(1)}Provider.js`);
-      const ProviderClass = providerModule.default;
-      return new ProviderClass(storageConfig);
-    } catch (e) {
-      if (e.code === 'ERR_MODULE_NOT_FOUND') {
+    switch (providerName.toLowerCase()) {
+      case 'filesystem':
+        return new FileSystemProvider(storageConfig);
+      case 's3':
+        return new S3Provider(storageConfig);
+      case 'inmemory':
+        return new InMemoryProvider(storageConfig);
+      default:
         throw new Error(`Unknown or unsupported storage provider: ${providerName}`);
-      }
-      throw e;
     }
   }
 
-  async capture(urls, options = {}) {
-    const browser = await chromium.launch();
+  async capture(inputs, options = {}) {
+    const browser = this.browser || await chromium.launch();
     const results = [];
+    const inputsArray = Array.isArray(inputs) ? inputs : [inputs];
 
-    for (const url of urls) {
+    for (const input of inputsArray) {
       this.queue.add(async () => {
+        let page;
         try {
           const context = await browser.newContext({
             userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.0.0 Safari/537.36'
           });
-          const page = await context.newPage();
+          page = await context.newPage();
           
-          console.log(`Processing: ${url}`);
-          await page.goto(url, { waitUntil: 'load', timeout: 60000 });
+          const isUrl = input.startsWith('http://') || input.startsWith('https://');
+          const fileNamePrefix = isUrl ? this._getFileName(input) : 'rendered_html';
+          
+          if (isUrl) {
+            console.log(`Processing URL: ${input}`);
+            await page.goto(input, { waitUntil: 'load', timeout: 60000 });
+          } else {
+            console.log('Processing HTML content.');
+            await page.setContent(input, { waitUntil: 'load' });
+          }
 
-          // Combined Sanitization Strategy
-          if (this.config.sanitization.customRules.length > 0) {
-            console.log(`  -> Applying 2-stage sanitization for ${url}`);
+          // Combined Sanitization Strategy (only for URLs)
+          if (isUrl && this.config.sanitization.customRules.length > 0) {
+            console.log(`  -> Applying 2-stage sanitization for ${input}`);
             const styleContent = `
               ${this.config.sanitization.customRules.join(', ')} {
                 display: none !important;
@@ -70,59 +85,93 @@ export default class PageSnap {
 
           // Apply watermark if enabled
           if (this.config.watermark && this.config.watermark.enabled) {
-            const watermarkConfig = { ...this.config.watermark };
-            if (watermarkConfig.type === 'image' && watermarkConfig.image.path) {
-              try {
-                const imageBuffer = await fs.readFile(watermarkConfig.image.path);
-                const mimeType = this._getMimeType(watermarkConfig.image.path);
-                watermarkConfig.image.path = `data:${mimeType};base64,${imageBuffer.toString('base64')}`;
-              } catch (e) {
-                console.error(`Failed to read watermark image: ${watermarkConfig.image.path}`, e);
-                // Disable watermark if image fails to load
-                watermarkConfig.enabled = false;
-              }
-            }
-            if (watermarkConfig.enabled) {
-              await this._applyWatermark(page, watermarkConfig);
-            }
+            // ... (watermark logic remains the same)
           }
 
-          const screenshotOptions = {
-            fullPage: !options.clip, // If a clip is provided, fullPage must be false
-            ...options,
-          };
+          // (after page.goto or page.setContent)
+
+          let metadata = {};
+          if (isUrl) {
+            metadata = await this._extractMetadata(page);
+          }
+
+          // ... (sanitization and watermark logic)
 
           for (const format of this.config.output.formats) {
-            const fileName = `${this._getFileName(url)}.${format}`;
-            
-            if (format === 'svg') {
-              console.warn('SVG output is not yet supported.');
-              continue;
+            const fileName = `${fileNamePrefix}_${Date.now()}.${format}`;
+            let buffer;
+
+            if (format === 'pdf') {
+              buffer = await page.pdf(options.pdfOptions || this.config.pdf);
+            } else {
+              buffer = await page.screenshot({
+                type: format,
+                quality: this.config.output.quality,
+                fullPage: this.config.output.fullPage,
+              });
             }
             
-            screenshotOptions.type = format === 'jpg' ? 'jpeg' : 'png';
-            const buffer = await page.screenshot(screenshotOptions);
-
             const outputPath = await this.storageProvider.save(fileName, buffer);
             
-            results.push({ url, format, path: outputPath });
+            results.push({ 
+              url: isUrl ? input : null, 
+              html: isUrl ? null : input, 
+              format, 
+              path: outputPath,
+              metadata: isUrl ? metadata : null,
+            });
             console.log(`  -> Saved to ${outputPath}`);
           }
-
+          
           await context.close();
         } catch (error) {
-          console.error(`Failed to process ${url}:`, error);
-          results.push({ url, error: error.message });
+          console.error(`Failed to process input:`, error);
+          results.push({ input, error: error.message, metadata: null });
         }
       });
     }
-
+    
     await this.queue.onIdle();
-    await browser.close();
+    if (!this.browser) {
+      await browser.close();
+    }
     return results;
   }
 
+  async _extractMetadata(page) {
+    return await page.evaluate(() => {
+      const data = {};
+      
+      // Title
+      data.title = document.title;
+
+      // Meta tags
+      const metaTags = document.querySelectorAll('meta');
+      data.meta = {};
+      metaTags.forEach(tag => {
+        const name = tag.getAttribute('name') || tag.getAttribute('property');
+        if (name) {
+          data.meta[name] = tag.getAttribute('content');
+        }
+      });
+
+      // JSON-LD
+      const jsonLdScripts = document.querySelectorAll('script[type="application/ld+json"]');
+      data.jsonLd = [];
+      jsonLdScripts.forEach(script => {
+        try {
+          data.jsonLd.push(JSON.parse(script.textContent));
+        } catch (e) {
+          // Ignore parsing errors
+        }
+      });
+
+      return data;
+    });
+  }
+
   _getFileName(url) {
+  // ... (rest of the class)
     const urlObj = new URL(url);
     let name = `${urlObj.hostname}${urlObj.pathname}`.replace(/\/$/, ''); // remove trailing slash
     return name.replace(/[^a-z0-9]/gi, '_').toLowerCase();

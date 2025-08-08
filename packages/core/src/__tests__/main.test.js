@@ -1,74 +1,131 @@
-const PageSnap = require('../main');
-const path = require('path');
-const fs = require('fs/promises');
+import { jest, describe, it, expect, beforeEach } from '@jest/globals';
+import PageSnap from '../main.js';
+import { loadConfig } from '../config.js';
 
-// Mocking playwright and p-queue to avoid actual browser launching during tests
-jest.mock('playwright', () => ({
-  chromium: {
-    launch: jest.fn().mockResolvedValue({
-      newContext: jest.fn().mockResolvedValue({
-        newPage: jest.fn().mockResolvedValue({
-          goto: jest.fn().mockResolvedValue(undefined),
-          evaluate: jest.fn().mockResolvedValue(undefined),
-          screenshot: jest.fn().mockResolvedValue(undefined),
-          close: jest.fn().mockResolvedValue(undefined),
+// Mock the entire playwright module - define all mocks inline to avoid hoisting issues
+jest.mock('playwright', () => {
+  const mockPdf = jest.fn().mockResolvedValue(Buffer.from('fake-pdf'));
+  const mockScreenshot = jest.fn().mockResolvedValue(Buffer.from('fake-png'));
+  const mockGoto = jest.fn().mockResolvedValue(undefined);
+  const mockSetContent = jest.fn().mockResolvedValue(undefined);
+  const mockEvaluate = jest.fn().mockResolvedValue({ title: 'Mock Title' });
+  const mockAddStyleTag = jest.fn().mockResolvedValue(undefined);
+  const mockPageClose = jest.fn().mockResolvedValue(undefined);
+  const mockContextClose = jest.fn().mockResolvedValue(undefined);
+  const mockBrowserClose = jest.fn().mockResolvedValue(undefined);
+  
+  return {
+    chromium: {
+      launch: jest.fn().mockResolvedValue({
+        newContext: jest.fn().mockResolvedValue({
+          newPage: jest.fn().mockResolvedValue({
+            pdf: mockPdf,
+            screenshot: mockScreenshot,
+            goto: mockGoto,
+            setContent: mockSetContent,
+            evaluate: mockEvaluate,
+            addStyleTag: mockAddStyleTag,
+            close: mockPageClose,
+          }),
+          close: mockContextClose,
         }),
-        close: jest.fn().mockResolvedValue(undefined),
+        close: mockBrowserClose,
       }),
-      close: jest.fn().mockResolvedValue(undefined),
-    }),
-  },
-}));
-
-jest.mock('p-queue', () => {
-    return {
-        __esModule: true,
-        default: jest.fn().mockImplementation(() => ({
-            add: jest.fn(async (task) => await task()),
-            onIdle: jest.fn().mockResolvedValue(undefined),
-        })),
-    };
-});
-
-
-describe('PageSnap', () => {
-  let converter;
-
-  beforeEach(() => {
-    converter = new PageSnap();
-  });
-
-  it('should generate a valid filename from a URL', () => {
-    const url = 'https://example.com/path/to/page/';
-    const expected = 'example_com_path_to_page';
-    expect(converter.getFileName(url)).toBe(expected);
-  });
-
-  it('should handle URLs with query strings', () => {
-    const url = 'https://www.google.com/search?q=pagesnap';
-    const expected = 'www_google_com_search';
-    expect(converter.getFileName(url)).toBe(expected);
-  });
-
-  it('should call capture and process a URL', async () => {
-    const urls = ['https://example.com'];
-    const results = await converter.capture(urls);
-    
-    // Verify that the mocked browser was used
-    const { chromium } = require('playwright');
-    expect(chromium.launch).toHaveBeenCalled();
-
-    // Check if the output path was created
-    const outputDir = path.resolve(process.cwd(), './snapshots');
-    try {
-        await fs.access(outputDir);
-    } catch (e) {
-        // This will fail if the directory doesn't exist, which is what we want to avoid
-        fail('Output directory was not created');
+    },
+    // Export the mock functions so they can be accessed in tests
+    __mocks: {
+      mockPdf,
+      mockScreenshot,
+      mockGoto,
+      mockSetContent,
+      mockEvaluate,
+      mockAddStyleTag,
+      mockPageClose,
+      mockContextClose,
+      mockBrowserClose,
     }
+  };
+});
 
-    // Clean up the created directory
-    await fs.rmdir(outputDir, { recursive: true });
+// Mock the p-queue module
+jest.mock('p-queue', () => {
+  return jest.fn().mockImplementation(() => {
+    const tasks = [];
+    return {
+      add: jest.fn((task) => {
+        tasks.push(task());
+        return Promise.resolve();
+      }),
+      onIdle: jest.fn(async () => {
+        await Promise.all(tasks);
+        return undefined;
+      }),
+    };
   });
 });
 
+// Import the mock module to access the mock functions
+import { chromium } from 'playwright';
+
+describe('PageSnap Core Functionality', () => {
+  let config;
+  let mockStorageProvider;
+
+  beforeEach(async () => {
+    config = await loadConfig();
+    
+    mockStorageProvider = {
+      save: jest.fn().mockImplementation((fileName, buffer) => {
+        return Promise.resolve(`/fake/path/${fileName}`);
+      }),
+    };
+
+    // Clear and re-setup the spy
+    if (PageSnap.prototype._initStorageProvider.mockRestore) {
+      PageSnap.prototype._initStorageProvider.mockRestore();
+    }
+    jest.spyOn(PageSnap.prototype, '_initStorageProvider').mockResolvedValue(mockStorageProvider);
+  });
+
+  it('should capture a URL and generate a PNG', async () => {
+    config.output.formats = ['png'];
+    const converter = await new PageSnap(config, null).init();
+    const results = await converter.capture(['https://example.com']);
+
+    // Verify results structure
+    expect(results).toHaveLength(1);
+    expect(results[0].format).toBe('png');
+    expect(results[0].path).toContain('.png');
+    expect(results[0].path).toContain('/fake/path/');
+    expect(results[0].metadata.title).toBe('Mock Title');
+    expect(results[0].url).toBe('https://example.com');
+  });
+
+  it('should capture a URL and generate a PDF', async () => {
+    config.output.formats = ['pdf'];
+    const converter = await new PageSnap(config, null).init();
+    const results = await converter.capture(['https://example.com']);
+
+    expect(results).toHaveLength(1);
+    expect(results[0].format).toBe('pdf');
+    expect(results[0].path).toContain('.pdf');
+    expect(results[0].path).toContain('/fake/path/');
+  });
+
+  it('should generate both PDF and PNG when configured', async () => {
+    config.output.formats = ['pdf', 'png'];
+    const converter = await new PageSnap(config, null).init();
+    const results = await converter.capture(['https://example.com']);
+
+    expect(results).toHaveLength(2);
+    
+    const pdfResult = results.find(r => r.format === 'pdf');
+    const pngResult = results.find(r => r.format === 'png');
+    
+    expect(pdfResult).toBeDefined();
+    expect(pdfResult.path).toContain('.pdf');
+    
+    expect(pngResult).toBeDefined(); 
+    expect(pngResult.path).toContain('.png');
+  });
+});

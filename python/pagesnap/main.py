@@ -66,8 +66,11 @@ class PageSnap:
                     print("SVG output is not yet supported.")
                     continue
 
-                screenshot_options['type'] = 'jpeg' if fmt == 'jpg' else fmt
-                buffer = await page.screenshot(**screenshot_options)
+                if fmt == 'pdf':
+                    buffer = await page.pdf(**options.get('pdfOptions', {}))
+                else:
+                    screenshot_options['type'] = 'jpeg' if fmt == 'jpg' else 'png'
+                    buffer = await page.screenshot(**screenshot_options)
                 
                 output_path = await self.storage_provider.save(file_name, buffer)
                 results.append({"url": url, "format": fmt, "path": output_path})

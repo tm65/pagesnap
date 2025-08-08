@@ -1,0 +1,37 @@
+# PageSnap Continuous Integration
+#
+# This workflow runs on every push to the main branch and on every pull request.
+# It installs dependencies, installs the required browser binaries, and runs the test suite.
+
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    name: Run Test Suite
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Install Playwright browser dependencies
+        run: npx playwright install --with-deps
+      
+      - name: Run tests
+        run: npm test -w @pagesnap/core
+

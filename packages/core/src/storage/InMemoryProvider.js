@@ -1,4 +1,4 @@
-import { LRUCache } from 'lru-cache';
+import LRUCache from 'lru-cache';
 import StorageProvider from './StorageProvider.js';
 
 export default class InMemoryProvider extends StorageProvider {

@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PageSnap API Documentation</title>
+  <style>
+    body { font-family: sans-serif; line-height: 1.6; padding: 20px; }
+    h1, h2, h3 { color: #333; }
+    code { background-color: #f4f4f4; padding: 2px 4px; border-radius: 4px; }
+    pre { background-color: #f4f4f4; padding: 10px; border-radius: 4px; white-space: pre-wrap; }
+    .endpoint { border-left: 4px solid #007bff; padding-left: 15px; margin-bottom: 30px; }
+  </style>
+</head>
+<body>
+  <h1>PageSnap API Documentation</h1>
+
+  <div class="endpoint">
+    <h2>POST /api/v1/convert</h2>
+    <p>Converts one or more webpages to the specified formats.</p>
+    <h3>Request Body</h3>
+    <pre><code>{
+  "urls": ["https://example.com"],
+  "formats": ["png", "jpg", "pdf"],
+  "clip": { "x": 0, "y": 0, "width": 1280, "height": 800 },
+  "watermark": { ... },
+  "callbackUrl": "https://your-webhook-url.com"
+}</code></pre>
+    <h3>Parameters</h3>
+    <ul>
+      <li><code>urls</code> (array, required): An array of URL strings.</li>
+      <li><code>formats</code> (array, optional): Overrides the default formats.</li>
+      <li><code>clip</code> (object, optional): Defines a capture region.</li>
+      <li><code>watermark</code> (object, optional): Watermark configuration.</li>
+      <li><code>callbackUrl</code> (string, optional): If provided, the request is processed asynchronously.</li>
+    </ul>
+  </div>
+
+  <div class="endpoint">
+    <h2>POST /api/v1/render/html</h2>
+    <p>Renders raw HTML content as an image.</p>
+    <h3>Request Body</h3>
+    <pre><code>{
+  "html": "&lt;h1&gt;Hello, World!&lt;/h1&gt;",
+  "formats": ["png"],
+  ...
+}</code></pre>
+  </div>
+
+  <div class="endpoint">
+    <h2>GET /render/v1/direct</h2>
+    <p>Generates a direct image URL for embedding.</p>
+    <h3>Query Parameters</h3>
+    <ul>
+      <li><code>url</code> (string, required): The URL to capture.</li>
+      <li><code>signature</code> (string, required): HMAC signature.</li>
+      <li>... (other screenshot options)</li>
+    </ul>
+  </div>
+
+</body>
+</html>
