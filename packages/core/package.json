@@ -1,6 +1,6 @@
 {
   "name": "@pagesnap/core",
-  "version": "0.1.0",
+  "version": "2.0.0",
   "description": "Core library for converting webpages to images.",
   "type": "module",
   "main": "src/index.js",
@@ -8,10 +8,13 @@
     "pagesnap": "src/cli.js"
   },
   "scripts": {
-    "test": "npx jest --testPathPattern='src/__tests__/.*\\.test\\.js$'"
+    "start:worker": "node src/worker.js",
+    "test": "NODE_OPTIONS='--experimental-vm-modules' npx jest"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.850.0",
+    "bullmq": "^5.56.9",
+    "ioredis": "^5.7.0",
     "lru-cache": "^5.1.1",
     "p-queue": "^7.3.4",
     "yargs": "^17.7.2"
@@ -19,31 +22,10 @@
   "devDependencies": {
     "@babel/core": "^7.28.0",
     "@babel/preset-env": "^7.28.0",
+    "babel-jest": "^29.0.0",
     "cross-env": "^10.0.0",
     "jest": "^29.0.0",
-    "babel-jest": "^29.0.0"
-  },
-  "jest": {
-    "testEnvironment": "node",
-    "transform": {
-      "^.+\\.js$": "babel-jest"
-    },
-    "transformIgnorePatterns": [],
-    "testMatch": [
-      "**/src/__tests__/**/*.test.js"
-    ]
-  },
-  "babel": {
-    "presets": [
-      [
-        "@babel/preset-env",
-        {
-          "targets": {
-            "node": "current"
-          }
-        }
-      ]
-    ]
+    "ts-jest": "^29.4.1"
   },
   "license": "ISC"
 }

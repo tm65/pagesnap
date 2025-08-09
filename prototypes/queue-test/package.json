@@ -1,0 +1,9 @@
+{
+  "name": "queue-test-prototype",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "bullmq": "^5.0.0",
+    "ioredis": "^5.3.2"
+  }
+}

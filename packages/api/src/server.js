@@ -2,13 +2,14 @@ import express from 'express';
 import crypto from 'crypto';
 import PageSnap from '@pagesnap/core';
 import { loadConfig } from '@pagesnap/core/src/config.js';
+import { ssrfProtection } from './ssrf-protection.js';
 
 const app = express();
 const port = process.env.PORT || 3000;
 
 app.use(express.json());
 
-app.post('/api/v1/convert', async (req, res) => {
+app.post('/api/v1/convert', ssrfProtection, async (req, res) => {
   const { urls, watermark, callbackUrl, ...options } = req.body;
 
   if (!urls || !Array.isArray(urls) || urls.length === 0) {
@@ -113,7 +114,7 @@ function verifyHmac(req, res, next) {
   res.status(401).send('Invalid signature.');
 }
 
-app.get('/render/v1/direct', verifyHmac, async (req, res) => {
+app.get('/render/v1/direct', verifyHmac, ssrfProtection, async (req, res) => {
   const { url, ...options } = req.query;
 
   if (!url) {

@@ -1,6 +1,7 @@
 {
   "name": "pagesnap-monorepo",
   "private": true,
+  "type": "module",
   "workspaces": [
     "packages/*"
   ],
@@ -8,6 +9,10 @@
     "core": "npm run -w @pagesnap/core",
     "api": "npm run -w @pagesnap/api",
     "setup": "npm install && npx playwright install --with-deps"
+  },
+  "dependencies": {
+    "bullmq": "^5.0.0",
+    "ioredis": "^5.3.2"
   },
   "devDependencies": {
     "playwright": "^1.40.1"

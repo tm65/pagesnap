@@ -24,6 +24,19 @@ const defaultConfig = {
     blockerLists: [],
     customRules: [],
   },
+  // Browser pool configuration for worker processes
+  browserPool: {
+    maxBrowsers: 4,           // Maximum number of browser instances
+    maxPagesPerBrowser: 10,   // Maximum pages per browser before rotation
+    browserIdleTimeout: 300000 // 5 minutes - close idle browsers
+  },
+  // Redis caching configuration
+  cache: {
+    enabled: true,            // Enable/disable caching
+    ttl: 3600,               // Cache TTL in seconds (1 hour)
+    keyPrefix: 'pagesnap:cache:',
+    redisUrl: process.env.REDIS_URL || 'redis://localhost:6379'
+  },
 };
 
 export async function loadConfig(configPath = 'pagesnap.config.json') {
@@ -39,6 +52,8 @@ export async function loadConfig(configPath = 'pagesnap.config.json') {
         performance: { ...defaultConfig.performance, ...userConfig.performance },
         sanitization: { ...defaultConfig.sanitization, ...userConfig.sanitization },
         storage: { ...defaultConfig.output.storage, ...userConfig.output.storage },
+        browserPool: { ...defaultConfig.browserPool, ...userConfig.browserPool },
+        cache: { ...defaultConfig.cache, ...userConfig.cache },
     };
   } catch (e) {
     return defaultConfig;
